@@ -3,12 +3,14 @@
     Cortex の依存関係セットアップスクリプト。
 
 .DESCRIPTION
-    1. git submodule (json / DirectX-Headers / DirectXTex / assimp / llama.cpp / curl) を取得・更新する  ← 常に実行
+    1. git submodule (json / DirectX-Headers / DirectXTex / assimp / RmlUi / freetype / llama.cpp / curl) を取得・更新する  ← 常に実行
     2. assimp を CMake (Visual Studio 17 2022 / x64 / Debug + Release) で静的ライブラリとしてビルドする  ← 常に実行
        -> モデル読み込みに必須。Cortex.sln のビルド前に一度実行しておくこと。
-    3. (任意) LocalLLM/llama.cpp を CMake (Visual Studio 17 2022 / x64 / Release) でビルドする
+    3. FreeType と RmlUi を CMake (Visual Studio 17 2022 / x64 / Debug + Release) で静的ライブラリとしてビルドする  ← 常に実行
+       -> 実ゲーム UI (.rml/.rcss) に必須。Cortex.sln のビルド前に一度実行しておくこと。
+    4. (任意) LocalLLM/llama.cpp を CMake (Visual Studio 17 2022 / x64 / Release) でビルドする
        -> BaseLLM クラスを使う場合のみ必要。-Llama を付けたときだけ実行。
-    4. (任意) curl を静的ライブラリとしてビルドする  (-BuildCurl)
+    5. (任意) curl を静的ライブラリとしてビルドする  (-BuildCurl)
 
     json / DirectX-Headers はヘッダオンリーのため取得のみでビルド不要。
     DirectXTex は Manager が .vcxproj を ProjectReference しているため CMake ビルド不要。
@@ -21,7 +23,8 @@
     llama.cpp を CUDA 有効でビルドする (要 NVIDIA CUDA Toolkit / nvcc)。既定は CPU のみ。
 
 .PARAMETER BuildCurl
-    curl も併せてビルドする。
+    curl も静的ライブラリとしてビルドする (-Llama とは独立、単独で指定可能)。
+    リンクを有効にするには別途 Directory.Build.props の <CortexUseCurl> を true にすること (既定 false)。
 
 .PARAMETER Clean
     assimp / llama.cpp / curl の build ディレクトリを削除してから構成し直す。
@@ -123,11 +126,91 @@ Get-ChildItem -Recurse -Filter *.lib $AssimpBuild |
     Where-Object { $_.Name -match '^(assimp|zlibstaticd?)\.lib$' } |
     ForEach-Object { "    " + $_.FullName.Substring($RepoRoot.Length + 1) }
 
+# ----------------------------------------------------------------------
+Write-Step "FreeType をビルド (Visual Studio 17 2022 / x64 / Debug + Release, RmlUi の既定フォントエンジン)"
+
+$FreeTypeSrc     = Join-Path $RepoRoot 'ThirdParty\freetype'
+$FreeTypeBuild   = Join-Path $FreeTypeSrc 'build'
+$FreeTypeInstall = Join-Path $FreeTypeSrc 'install'
+if ($Clean) {
+    if (Test-Path $FreeTypeBuild)   { Write-Host "  build ディレクトリを削除: $FreeTypeBuild";     Remove-Item -Recurse -Force $FreeTypeBuild }
+    if (Test-Path $FreeTypeInstall) { Write-Host "  install ディレクトリを削除: $FreeTypeInstall"; Remove-Item -Recurse -Force $FreeTypeInstall }
+}
+
+# 静的ライブラリ / zlib・bzip2・png・harfbuzz・brotli は全て無効化した自己完結ビルド。
+# Debug は CMAKE_DEBUG_POSTFIX (既定 "d") により freetyped.lib になる。
+# install\lib\ へ Debug/Release 両方の .lib と freetype-config.cmake を出力し、
+# RmlUi の find_package(Freetype) から CMAKE_PREFIX_PATH 経由で解決できるようにする。
+Invoke-Native cmake `
+    -S $FreeTypeSrc -B $FreeTypeBuild -G 'Visual Studio 17 2022' -A x64 `
+    "-DCMAKE_INSTALL_PREFIX=$FreeTypeInstall" `
+    -DBUILD_SHARED_LIBS=OFF `
+    -DFT_DISABLE_ZLIB=ON -DFT_DISABLE_BZIP2=ON -DFT_DISABLE_PNG=ON `
+    -DFT_DISABLE_HARFBUZZ=ON -DFT_DISABLE_BROTLI=ON
+Invoke-Native cmake --build $FreeTypeBuild --config Debug   --parallel
+Invoke-Native cmake --build $FreeTypeBuild --config Release --parallel
+Invoke-Native cmake --install $FreeTypeBuild --config Debug
+Invoke-Native cmake --install $FreeTypeBuild --config Release
+
+# ----------------------------------------------------------------------
+Write-Step "RmlUi をビルド (Visual Studio 17 2022 / x64 / Debug + Release)"
+
+$RmlUiSrc   = Join-Path $RepoRoot 'ThirdParty\RmlUi'
+$RmlUiBuild = Join-Path $RmlUiSrc 'build'
+if ($Clean -and (Test-Path $RmlUiBuild)) {
+    Write-Host "  build ディレクトリを削除: $RmlUiBuild"
+    Remove-Item -Recurse -Force $RmlUiBuild
+}
+
+# 静的ライブラリ / サンプル・Lua バインディングは無効 / フォントエンジンは上でビルドした FreeType を使用。
+# rmlui.lib と rmlui_debugger.lib を build\lib\<Config>\ へまとめて出力する (Debug/Release とも同名)。
+Invoke-Native cmake `
+    -S $RmlUiSrc -B $RmlUiBuild -G 'Visual Studio 17 2022' -A x64 `
+    "-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$RmlUiBuild\lib" `
+    "-DCMAKE_PREFIX_PATH=$FreeTypeInstall" `
+    -DBUILD_SHARED_LIBS=OFF `
+    -DRMLUI_SAMPLES=OFF -DRMLUI_LUA_BINDINGS=OFF `
+    -DRMLUI_FONT_ENGINE=freetype
+Invoke-Native cmake --build $RmlUiBuild --config Debug   --parallel
+Invoke-Native cmake --build $RmlUiBuild --config Release --parallel
+
+Write-Host "`n  生成された .lib:" -ForegroundColor Green
+Get-ChildItem -Recurse -Filter *.lib $RmlUiBuild |
+    Where-Object { $_.Name -match '^rmlui(_debugger)?\.lib$' } |
+    ForEach-Object { "    " + $_.FullName.Substring($RepoRoot.Length + 1) }
+
+# ----------------------------------------------------------------------
+if ($BuildCurl) {
+    Write-Step "curl をビルド (Visual Studio 17 2022 / x64 / Debug + Release)"
+
+    $CurlSrc   = Join-Path $RepoRoot 'Curl\curl'
+    $CurlBuild = Join-Path $CurlSrc 'build'
+    if ($Clean -and (Test-Path $CurlBuild)) {
+        Write-Host "  build ディレクトリを削除: $CurlBuild"
+        Remove-Item -Recurse -Force $CurlBuild
+    }
+
+    # 静的ライブラリ / SChannel (Windows 標準 TLS) 使用でcacert.pem等の同梱不要 / 追加の圧縮・IDN ライブラリは無効化した自己完結ビルド。
+    # libcurl.lib を build\lib\<Config>\ へ出力する (Debug は CMAKE_DEBUG_POSTFIX の既定値により libcurl-d.lib になる)。
+    Invoke-Native cmake `
+        -S $CurlSrc -B $CurlBuild -G 'Visual Studio 17 2022' -A x64 `
+        "-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$CurlBuild\lib" `
+        -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DCURL_USE_SCHANNEL=ON `
+        -DCURL_ZLIB=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_LIBIDN2=OFF
+    Invoke-Native cmake --build $CurlBuild --config Debug   --parallel
+    Invoke-Native cmake --build $CurlBuild --config Release --parallel
+
+    Write-Host "`n  生成された .lib:" -ForegroundColor Green
+    Get-ChildItem -Recurse -Filter *.lib $CurlBuild |
+        Where-Object { $_.Name -match '^libcurl(-d)?\.lib$' } |
+        ForEach-Object { "    " + $_.FullName.Substring($RepoRoot.Length + 1) }
+}
+
 if (-not $Llama) {
-    Write-Step "完了 (submodule + assimp)"
+    Write-Step "完了 (submodule + assimp + RmlUi$(if ($BuildCurl) { ' + curl' }))"
     Write-Host @"
-Cortex.sln は Release / x64 でそのままビルドできます (assimp はビルド済み)。
-ローカル LLM (BaseLLM / llama.cpp) を使う場合は -Llama を付けて再実行してください。
+Cortex.sln は Release / x64 でそのままビルドできます (assimp / RmlUi はビルド済み)。
+$(if ($BuildCurl) { "curl を使う場合は Directory.Build.props で <CortexUseCurl> を true にしてください (既定 false)。`n" })ローカル LLM (BaseLLM / llama.cpp) を使う場合は -Llama を付けて再実行してください。
 詳細は README「LocalLLM / llama.cpp のビルド」。
 "@ -ForegroundColor Green
     return
@@ -162,18 +245,6 @@ Write-Host "`n  生成された .lib:" -ForegroundColor Green
 Get-ChildItem -Recurse -Filter *.lib $LlamaBuild |
     Where-Object { $_.Name -match '^(llama|ggml|ggml-base|ggml-cpu|ggml-cuda|llama-common|llama-common-base)\.lib$' } |
     ForEach-Object { "    " + $_.FullName.Substring($RepoRoot.Length + 1) }
-
-# ----------------------------------------------------------------------
-if ($BuildCurl) {
-    Write-Step "curl をビルド"
-    $CurlSrc   = Join-Path $RepoRoot 'Curl\curl'
-    $CurlBuild = Join-Path $CurlSrc 'build'
-    if ($Clean -and (Test-Path $CurlBuild)) { Remove-Item -Recurse -Force $CurlBuild }
-    Invoke-Native cmake -S $CurlSrc -B $CurlBuild -G 'Visual Studio 17 2022' -A x64 `
-        -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DCURL_USE_SCHANNEL=ON `
-        -DCURL_ZLIB=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_LIBIDN2=OFF
-    Invoke-Native cmake --build $CurlBuild --config Release --parallel
-}
 
 Write-Step "完了"
 Write-Host @"

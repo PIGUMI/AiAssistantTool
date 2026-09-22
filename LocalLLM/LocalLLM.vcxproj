@@ -134,10 +134,12 @@
          ビルド時に /p:CortexUseLlama=true を指定するか Directory.Build.props で設定する。 -->
     <ClCompile Include="BaseLLM.cpp" Condition="'$(CortexUseLlama)' == 'true'" />
     <ClCompile Include="llamaServer.cpp" />
+    <ClCompile Include="llamaServerCurl.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="BaseLLM.h" />
     <ClInclude Include="llamaServer.h" />
+    <ClInclude Include="llamaServerCurl.h" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\Helper\Helper.vcxproj">

@@ -1,11 +1,18 @@
-#include <windows.h>
-#include "Template.h"
-#include "Window.h"
+#include <Window.h>
+#include <iostream>
+#include "../LocalLLM/llamaServer.h"
+#include "../Helper/Helper.h"
 
-// Windowsアプリケーションのエントリーポイント
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow)
 {
-	TemplateMain(hInstance, nCmdShow);
+}
+
+int main()
+{
+
+
+
+
 
 	return 0;
 }

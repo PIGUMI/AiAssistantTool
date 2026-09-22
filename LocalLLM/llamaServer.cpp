@@ -9,7 +9,7 @@
 #pragma comment(lib, "winhttp.lib")
 
 #define LLAMA_SERVER_HOST L"192.168.0.13"
-#define LLAMA_SERVER_PORT (8080)
+#define LLAMA_SERVER_PORT (8081)
 #define LLAMA_SERVER_API_PATH L"/v1/chat/completions"
 #define LLAMA_SERVER_API_KEY "aac7cad858b5df7eea54979d29f76ff96b3d37d4b1f9c7f7"
 
@@ -17,7 +17,7 @@ std::string LocalLLM::CallLlamaServer(const std::string& utf8UserMessage)
 {
 	nlohmann::json requestBody =
 	{
-			{"model", "Qwen3.5-9B-UD-Q6_K_XL"},
+			{"model", "gemma-4-E4B-it-q4_0"},
 			{"chat_template_kwargs", {{"enable_thinking", false}}}, // 簡易チャット用に思考過程(reasoning)を無効化
 			{"messages", nlohmann::json::array({
 				// \uエスケープ(素のASCII)で書くことで、ソースファイルの文字コードに依存せず

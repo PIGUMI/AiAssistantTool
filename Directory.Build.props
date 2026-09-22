@@ -37,6 +37,12 @@
       使う場合は README「LocalLLM / llama.cpp のビルド」に従いビルドし、
       下の CortexUseLlama を true にする (CUDA を使うなら CortexLlamaCuda も true)。
 
+    - Curl/curl : 別 PC 上の llama-server 等へ HTTP でアクセスするための libcurl。
+      ヘッダは submodule クローンだけで使えるためインクルードパスは全 Cortex プロジェクトへ
+      常に通すが (CURL_STATICLIB も同様に常時定義)、静的ライブラリ自体は setup.ps1 -BuildCurl を
+      明示的に実行しないと生成されない。既定 (CortexUseCurl=false) ではリンクしない。
+      使う場合は setup.ps1 -BuildCurl でビルドし、下の CortexUseCurl を true にする。
+
   これにより各 .vcxproj から NuGet 依存 (nlohmann.json / Microsoft.Direct3D.D3D12) を撤去できる。
 -->
 <Project>
@@ -69,6 +75,18 @@
     <!-- RmlUi をリンクするか。既定 true。ビルド未実行の環境では /p:CortexUseRmlUi=false -->
     <CortexUseRmlUi Condition="'$(CortexUseRmlUi)' == ''">true</CortexUseRmlUi>
 
+    <!-- curl。ヘッダは submodule クローンのみで使えるが、静的ライブラリは setup.ps1 -BuildCurl を
+         明示的に実行したときだけ生成される (既定では未ビルド)。 -->
+    <CortexCurlInclude>$(CortexRoot)Curl\curl\include</CortexCurlInclude>
+    <!-- libcurl.lib の出力先 (setup.ps1 -BuildCurl の -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY と一致) -->
+    <CortexCurlLibDir>$(CortexRoot)Curl\curl\build\lib\$(Configuration)</CortexCurlLibDir>
+    <!-- curl 自身のビルドは Debug のみ CMAKE_DEBUG_POSTFIX の既定値 "-d" が付く -->
+    <CortexCurlLib Condition="'$(Configuration)' == 'Debug'">libcurl-d.lib</CortexCurlLib>
+    <CortexCurlLib Condition="'$(CortexCurlLib)' == ''">libcurl.lib</CortexCurlLib>
+    <!-- curl をリンクするか。既定 false (setup.ps1 -BuildCurl を実行して初めて有効化できるため)。
+         有効化するには /p:CortexUseCurl=true を指定するか、このファイルの既定値を true に変える。 -->
+    <CortexUseCurl Condition="'$(CortexUseCurl)' == ''">false</CortexUseCurl>
+
     <!-- ローカル LLM (llama.cpp / BaseLLM) を有効にするか。既定 false。 -->
     <CortexUseLlama Condition="'$(CortexUseLlama)' == ''">false</CortexUseLlama>
     <!-- llama.cpp を CUDA 有効でビルドした場合に true (CortexUseLlama=true が前提)。既定 false。 -->
@@ -82,8 +100,8 @@
        (SDK 標準ヘッダで素直にビルドさせるため)。 -->
   <ItemDefinitionGroup Condition="!$(MSBuildProjectDirectory.Contains('ThirdParty'))">
     <ClCompile>
-      <AdditionalIncludeDirectories>$(CortexJsonInclude);$(CortexDxHeadersInclude)\directx;$(CortexDxHeadersInclude);$(CortexDirectXTexInclude);$(CortexAssimpInclude);$(CortexRmlUiInclude);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <PreprocessorDefinitions>RMLUI_STATIC_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(CortexJsonInclude);$(CortexDxHeadersInclude)\directx;$(CortexDxHeadersInclude);$(CortexDirectXTexInclude);$(CortexAssimpInclude);$(CortexRmlUiInclude);$(CortexCurlInclude);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>RMLUI_STATIC_LIB;CURL_STATICLIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
   </ItemDefinitionGroup>
 
@@ -103,6 +121,16 @@
     <Link>
       <AdditionalLibraryDirectories>$(CortexAssimpLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <AdditionalDependencies>assimp.lib;$(CortexZlibLib);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- curl のリンクは Application (x64) かつ CortexUseCurl=true のときだけ。
+       SChannel (Windows 標準 TLS) を使うビルドなので cacert.pem 等の同梱は不要だが、
+       静的リンクだと自動解決されない Windows 標準ライブラリ (WinSock/暗号/NTLM 等) を明示的に追加する必要がある。 -->
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' == 'Application' and '$(Platform)' == 'x64' and '$(CortexUseCurl)' == 'true'">
+    <Link>
+      <AdditionalLibraryDirectories>$(CortexCurlLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>$(CortexCurlLib);ws2_32.lib;crypt32.lib;bcrypt.lib;advapi32.lib;normaliz.lib;wldap32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
