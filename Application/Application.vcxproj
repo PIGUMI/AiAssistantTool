@@ -178,10 +178,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="Template.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="Template.h" />
   </ItemGroup>
   <Target Name="CopyLlamaRuntimeDlls" AfterTargets="Build">
     <ItemGroup>
