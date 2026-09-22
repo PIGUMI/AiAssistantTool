@@ -190,13 +190,16 @@ if ($BuildCurl) {
         Remove-Item -Recurse -Force $CurlBuild
     }
 
-    # 静的ライブラリ / SChannel (Windows 標準 TLS) 使用でcacert.pem等の同梱不要 / 追加の圧縮・IDN ライブラリは無効化した自己完結ビルド。
+    # 静的ライブラリ / SChannel (Windows 標準 TLS) 使用でcacert.pem等の同梱不要 / 追加の圧縮・IDN・PSL・HTTP2
+    # ライブラリは無効化した自己完結ビルド (Libpsl は既定 ON かつ find_package が REQUIRED 指定のため、
+    # 未インストール環境では明示的に OFF にしないと CMake configure が失敗する)。
     # libcurl.lib を build\lib\<Config>\ へ出力する (Debug は CMAKE_DEBUG_POSTFIX の既定値により libcurl-d.lib になる)。
     Invoke-Native cmake `
         -S $CurlSrc -B $CurlBuild -G 'Visual Studio 17 2022' -A x64 `
         "-DCMAKE_ARCHIVE_OUTPUT_DIRECTORY=$CurlBuild\lib" `
         -DBUILD_SHARED_LIBS=OFF -DBUILD_CURL_EXE=OFF -DCURL_USE_SCHANNEL=ON `
-        -DCURL_ZLIB=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_LIBIDN2=OFF
+        -DCURL_ZLIB=OFF -DCURL_BROTLI=OFF -DCURL_ZSTD=OFF -DUSE_LIBIDN2=OFF `
+        -DCURL_USE_LIBPSL=OFF -DUSE_NGHTTP2=OFF
     Invoke-Native cmake --build $CurlBuild --config Debug   --parallel
     Invoke-Native cmake --build $CurlBuild --config Release --parallel
 

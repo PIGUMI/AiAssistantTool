@@ -6,13 +6,7 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="BaseLLM.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
     <ClCompile Include="llamaServer.cpp">
-      <Filter>source</Filter>
-    </ClCompile>
-    <ClCompile Include="llamaServerCurl.cpp">
       <Filter>source</Filter>
     </ClCompile>
   </ItemGroup>
@@ -21,9 +15,6 @@
       <Filter>source</Filter>
     </ClInclude>
     <ClInclude Include="llamaServer.h">
-      <Filter>source</Filter>
-    </ClInclude>
-    <ClInclude Include="llamaServerCurl.h">
       <Filter>source</Filter>
     </ClInclude>
   </ItemGroup>

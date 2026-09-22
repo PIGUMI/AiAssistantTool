@@ -85,7 +85,7 @@
     <CortexCurlLib Condition="'$(CortexCurlLib)' == ''">libcurl.lib</CortexCurlLib>
     <!-- curl をリンクするか。既定 false (setup.ps1 -BuildCurl を実行して初めて有効化できるため)。
          有効化するには /p:CortexUseCurl=true を指定するか、このファイルの既定値を true に変える。 -->
-    <CortexUseCurl Condition="'$(CortexUseCurl)' == ''">false</CortexUseCurl>
+    <CortexUseCurl Condition="'$(CortexUseCurl)' == ''">true</CortexUseCurl>
 
     <!-- ローカル LLM (llama.cpp / BaseLLM) を有効にするか。既定 false。 -->
     <CortexUseLlama Condition="'$(CortexUseLlama)' == ''">false</CortexUseLlama>
@@ -130,7 +130,7 @@
   <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' == 'Application' and '$(Platform)' == 'x64' and '$(CortexUseCurl)' == 'true'">
     <Link>
       <AdditionalLibraryDirectories>$(CortexCurlLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <AdditionalDependencies>$(CortexCurlLib);ws2_32.lib;crypt32.lib;bcrypt.lib;advapi32.lib;normaliz.lib;wldap32.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(CortexCurlLib);ws2_32.lib;crypt32.lib;bcrypt.lib;advapi32.lib;normaliz.lib;wldap32.lib;iphlpapi.lib;secur32.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
 
