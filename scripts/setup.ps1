@@ -58,9 +58,10 @@ function Require-Command($name) {
     }
 }
 function Invoke-Native {
-    param([Parameter(Mandatory)][string]$Exe, [Parameter(ValueFromRemainingArguments)][string[]]$Args)
-    & $Exe @Args
-    if ($LASTEXITCODE -ne 0) { throw "$Exe が終了コード $LASTEXITCODE で失敗しました。" }
+    $exe = $args[0]
+    $rest = if ($args.Count -gt 1) { $args[1..($args.Count - 1)] } else { @() }
+    & $exe @rest
+    if ($LASTEXITCODE -ne 0) { throw "$exe が終了コード $LASTEXITCODE で失敗しました。" }
 }
 
 Require-Command git
