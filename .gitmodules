@@ -1,0 +1,27 @@
+[submodule "LocalLLM/llama.cpp"]
+	path = LocalLLM/llama.cpp
+	url = https://github.com/ggml-org/llama.cpp.git
+[submodule "Curl/curl"]
+	path = Curl/curl
+	url = https://github.com/curl/curl.git
+[submodule "ThirdParty/json"]
+	path = ThirdParty/json
+	url = https://github.com/nlohmann/json.git
+[submodule "ThirdParty/DirectX-Headers"]
+	path = ThirdParty/DirectX-Headers
+	url = https://github.com/microsoft/DirectX-Headers.git
+[submodule "ThirdParty/DirectXTex"]
+	path = ThirdParty/DirectXTex
+	url = https://github.com/microsoft/DirectXTex.git
+[submodule "ThirdParty/assimp"]
+	path = ThirdParty/assimp
+	url = https://github.com/assimp/assimp.git
+[submodule "ThirdParty/imgui"]
+	path = ThirdParty/imgui
+	url = https://github.com/ocornut/imgui.git
+[submodule "ThirdParty/freetype"]
+	path = ThirdParty/freetype
+	url = https://github.com/freetype/freetype.git
+[submodule "ThirdParty/RmlUi"]
+	path = ThirdParty/RmlUi
+	url = https://github.com/mikke89/RmlUi.git

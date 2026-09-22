@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Directory.Build.props
+  MSBuild がソリューション配下の全 .vcxproj を読み込む前に自動 import する共通設定ファイル。
+  ここで外部依存 (git submodule) をまとめて配線する。
+
+  == ヘッダオンリー依存 (git submodule 取得のみ・ビルド不要) ==
+    - ThirdParty/json            : nlohmann/json  (<nlohmann/json.hpp>)
+    - ThirdParty/DirectX-Headers : DirectX Agility Headers (<d3d12.h> / <d3dx12.h>)
+
+  == MSBuild ビルドが必要な依存 (ProjectReference で自動ビルド) ==
+    - ThirdParty/DirectXTex : テクスチャ読込/変換 (<DirectXTex.h>)。
+      Manager が DirectXTex_Desktop_2022_Win10.vcxproj を ProjectReference しており、
+      Application ビルド時に依存として自動的にスタティックライブラリがビルド・リンクされる。
+      このファイルではインクルードパス (下の CortexDirectXTexInclude) だけを全 Cortex
+      プロジェクトへ通す。DirectXTex 自身のビルドには Cortex の設定を注入しない
+      (下の ItemDefinitionGroup は ThirdParty 配下のプロジェクトを除外している)。
+
+  == CMake ビルドが必要な依存 (scripts\setup.ps1 で常にビルド) ==
+    - ThirdParty/assimp : モデル読込 (<assimp/Importer.hpp> 等)。静的ライブラリ。
+      setup.ps1 が Debug/Release 両方をビルドし assimp.lib / zlib(static) を
+      build\lib\<Config>\ へ出力する。インクルードは全 Cortex プロジェクトへ、
+      リンクは Application (x64) のみ (下の CortexUseAssimp、既定 true)。
+      setup.ps1 未実行だと Application のリンクが assimp.lib 不足で失敗する。
+
+    - ThirdParty/RmlUi (+ ThirdParty/freetype) : 実ゲーム UI (.rml/.rcss)。静的ライブラリ。
+      RmlUiGUI プロジェクトが Rml::RenderInterface / SystemInterface を自前実装して
+      Cortex の DirectX12/Descriptor に接続する (RmlUi 公式 Backends は自前でデバイスを
+      作る自己完結サンプルなので使わない)。リンクは Application (x64) のみ
+      (下の CortexUseRmlUi、既定 true)。RMLUI_STATIC_LIB を全 Cortex プロジェクトへ定義する
+      (静的リンク時に必須。無いと RMLUICORE_API が dllimport のままで解決できない)。
+
+  == CMake ビルドが必要な依存 (既定では無効) ==
+    - LocalLLM/llama.cpp : ローカル LLM 推論 (BaseLLM クラス) 用。
+      既定 (CortexUseLlama=false) では BaseLLM.cpp をビルド対象から外し、
+      llama.cpp を一切参照しない。→ llama.cpp を CMake ビルドしなくてもソリューションが通る。
+      使う場合は README「LocalLLM / llama.cpp のビルド」に従いビルドし、
+      下の CortexUseLlama を true にする (CUDA を使うなら CortexLlamaCuda も true)。
+
+  これにより各 .vcxproj から NuGet 依存 (nlohmann.json / Microsoft.Direct3D.D3D12) を撤去できる。
+-->
+<Project>
+  <PropertyGroup>
+    <CortexRoot>$(MSBuildThisFileDirectory)</CortexRoot>
+    <CortexJsonInclude>$(CortexRoot)ThirdParty\json\single_include</CortexJsonInclude>
+    <CortexDxHeadersInclude>$(CortexRoot)ThirdParty\DirectX-Headers\include</CortexDxHeadersInclude>
+    <CortexDirectXTexInclude>$(CortexRoot)ThirdParty\DirectXTex\DirectXTex</CortexDirectXTexInclude>
+
+    <!-- assimp。build\include には CMake が生成する config.h / revision.h が入るので先に置く。 -->
+    <CortexAssimpInclude>$(CortexRoot)ThirdParty\assimp\build\include;$(CortexRoot)ThirdParty\assimp\include</CortexAssimpInclude>
+    <!-- assimp.lib / zlib の出力先 (setup.ps1 の -DCMAKE_ARCHIVE_OUTPUT_DIRECTORY と一致) -->
+    <CortexAssimpLibDir>$(CortexRoot)ThirdParty\assimp\build\lib\$(Configuration)</CortexAssimpLibDir>
+    <!-- 同梱 zlib は Debug のみ末尾 d が付く (assimp 本体は付かない設定にしてある) -->
+    <CortexZlibLib Condition="'$(Configuration)' == 'Debug'">zlibstaticd.lib</CortexZlibLib>
+    <CortexZlibLib Condition="'$(CortexZlibLib)' == ''">zlibstatic.lib</CortexZlibLib>
+    <!-- assimp をリンクするか。既定 true (setup.ps1 が常にビルドするため)。
+         setup.ps1 を実行できない環境では /p:CortexUseAssimp=false でリンクを外せる。 -->
+    <CortexUseAssimp Condition="'$(CortexUseAssimp)' == ''">true</CortexUseAssimp>
+
+    <!-- RmlUi。Include だけでビルド成果物には依存しない -->
+    <CortexRmlUiInclude>$(CortexRoot)ThirdParty\RmlUi\Include</CortexRmlUiInclude>
+    <!-- rmlui.lib の出力先 (RMLUI_SAMPLES=OFF のため本体のみ。Debug/Release とも同名) -->
+    <CortexRmlUiLibDir>$(CortexRoot)ThirdParty\RmlUi\build\lib\$(Configuration)</CortexRmlUiLibDir>
+    <!-- FreeType (RmlUi の既定フォントエンジン)。install 済みの config パッケージ配下 -->
+    <CortexFreeTypeLibDir>$(CortexRoot)ThirdParty\freetype\install\lib</CortexFreeTypeLibDir>
+    <!-- FreeType 自身のビルドは Debug のみ末尾 d が付く (RmlUi/assimp 同梱 zlib と同じ事情) -->
+    <CortexFreeTypeLib Condition="'$(Configuration)' == 'Debug'">freetyped.lib</CortexFreeTypeLib>
+    <CortexFreeTypeLib Condition="'$(CortexFreeTypeLib)' == ''">freetype.lib</CortexFreeTypeLib>
+    <!-- RmlUi をリンクするか。既定 true。ビルド未実行の環境では /p:CortexUseRmlUi=false -->
+    <CortexUseRmlUi Condition="'$(CortexUseRmlUi)' == ''">true</CortexUseRmlUi>
+
+    <!-- ローカル LLM (llama.cpp / BaseLLM) を有効にするか。既定 false。 -->
+    <CortexUseLlama Condition="'$(CortexUseLlama)' == ''">false</CortexUseLlama>
+    <!-- llama.cpp を CUDA 有効でビルドした場合に true (CortexUseLlama=true が前提)。既定 false。 -->
+    <CortexLlamaCuda Condition="'$(CortexLlamaCuda)' == ''">false</CortexLlamaCuda>
+    <!-- llama.cpp の CMake 成果物ルート (scripts\setup.ps1 が生成) -->
+    <CortexLlamaBuildDir>$(CortexRoot)LocalLLM\llama.cpp\build</CortexLlamaBuildDir>
+  </PropertyGroup>
+
+  <!-- 外部依存のインクルードパスを全 Cortex プロジェクトへ。
+       ThirdParty 配下のプロジェクト (DirectXTex 等) 自身のビルドには注入しない
+       (SDK 標準ヘッダで素直にビルドさせるため)。 -->
+  <ItemDefinitionGroup Condition="!$(MSBuildProjectDirectory.Contains('ThirdParty'))">
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(CortexJsonInclude);$(CortexDxHeadersInclude)\directx;$(CortexDxHeadersInclude);$(CortexDirectXTexInclude);$(CortexAssimpInclude);$(CortexRmlUiInclude);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <PreprocessorDefinitions>RMLUI_STATIC_LIB;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <!-- RmlUi のリンクは Application (x64) かつ CortexUseRmlUi=true のときだけ。
+       rmlui.lib は同梱 FreeType に依存する (静的リンクなので両方必要)。
+       rmlui_debugger.lib は RmlUi 公式の要素インスペクタ (F8 でトグル、RmlUiGUI::Init 内で初期化)。 -->
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' == 'Application' and '$(Platform)' == 'x64' and '$(CortexUseRmlUi)' == 'true'">
+    <Link>
+      <AdditionalLibraryDirectories>$(CortexRmlUiLibDir);$(CortexFreeTypeLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>rmlui.lib;rmlui_debugger.lib;$(CortexFreeTypeLib);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- assimp のリンクは Application (x64) かつ CortexUseAssimp=true のときだけ。
+       assimp.lib は同梱 zlib に依存する (静的リンクなので両方必要)。 -->
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' == 'Application' and '$(Platform)' == 'x64' and '$(CortexUseAssimp)' == 'true'">
+    <Link>
+      <AdditionalLibraryDirectories>$(CortexAssimpLibDir);%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>assimp.lib;$(CortexZlibLib);%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+
+  <!-- CortexUseLlama=true のときだけ: BaseLLM.cpp に llama.cpp のインクルードパスを通す -->
+  <ItemDefinitionGroup Condition="'$(CortexUseLlama)' == 'true' and !$(MSBuildProjectDirectory.Contains('ThirdParty'))">
+    <ClCompile>
+      <PreprocessorDefinitions>CORTEX_USE_LLAMA=1;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <AdditionalIncludeDirectories>$(CortexRoot)LocalLLM\llama.cpp\include;$(CortexRoot)LocalLLM\llama.cpp\ggml\include;$(CortexRoot)LocalLLM\llama.cpp\common;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+  </ItemDefinitionGroup>
+
+  <!-- llama.cpp のリンクは Application (x64) かつ CortexUseLlama=true のときだけ -->
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' == 'Application' and '$(Platform)' == 'x64' and '$(CortexUseLlama)' == 'true'">
+    <Link>
+      <AdditionalLibraryDirectories>$(CortexLlamaBuildDir)\src\Release;$(CortexLlamaBuildDir)\ggml\src\Release;$(CortexLlamaBuildDir)\common\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>llama.lib;ggml.lib;ggml-base.lib;ggml-cpu.lib;llama-common.lib;llama-common-base.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+  <ItemDefinitionGroup Condition="'$(MSBuildProjectName)' == 'Application' and '$(Platform)' == 'x64' and '$(CortexUseLlama)' == 'true' and '$(CortexLlamaCuda)' == 'true'">
+    <Link>
+      <AdditionalLibraryDirectories>$(CortexLlamaBuildDir)\ggml\src\ggml-cuda\Release;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalDependencies>ggml-cuda.lib;%(AdditionalDependencies)</AdditionalDependencies>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>
