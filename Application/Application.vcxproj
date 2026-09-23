@@ -177,7 +177,13 @@
     </ProjectReference>
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Controller.cpp" />
+    <ClCompile Include="History.cpp" />
     <ClCompile Include="main.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Controller.h" />
+    <ClInclude Include="History.h" />
   </ItemGroup>
   <Target Name="CopyLlamaRuntimeDlls" AfterTargets="Build">
     <ItemGroup>
